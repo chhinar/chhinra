@@ -1,0 +1,153 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta content="text/html; charset=UTF-8" http-equiv="Content-Type">
+<meta content="noindex" name="robots">
+<meta charset="UTF-8">
+<meta name="csrf-param" content="authenticity_token">
+<meta name="csrf-token" content="5A3yVFgI4/SBGWIUhSVPCAZ9m8bnqSIG1mmXzf8KW4xJuvhS1koJZjAXI6/Tvo3o+hRIBd8CTKdWKmUKAvpSvQ==">
+<script src="https://accounts.google.com/gsi/client"></script>
+<style>
+  body {
+    margin: 0;
+    padding: 0;
+  }
+  
+  #credential_picker_container {
+    top: 0 !important;
+    left: 0 !important;
+  }
+</style>
+<script>
+  window.onload = function() {
+    const csrfToken =
+      () => document.querySelector('meta[name="csrf-token"]').attributes.content.value;
+  
+    const isGoogleOneTapNode =
+      node => node.id === "credential_picker_container" || node.id === "credential_picker_iframe";
+  
+    const postHeightChanged =
+      height => window.parent.postMessage({ type: 'google-one-tap.height_changed', height: height }, '*');
+  
+    const postNotification =
+      notification => window.parent.postMessage({ type: 'google-one-tap.notification', message: notification.message, redirect_url: notification.redirect_url }, '*');
+  
+    const formatCredentials =
+      credentialResponse => JSON.stringify({
+        client_id: credentialResponse.clientId,
+        credential: credentialResponse.credential
+      });
+  
+    const registerUser = (user) => {
+      fetch('/create-user', {
+        method: 'POST',
+        mode: 'same-origin',
+        cache: 'no-cache',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-Token': csrfToken()
+        },
+        redirect: 'follow',
+        referrerPolicy: 'same-origin',
+        body: JSON.stringify({ user })
+      })
+      .then(response => response.json())
+      .then(handleUserRegistration);
+    }
+  
+    const handleUserRegistration = (response) => {
+      window.top.location.href =
+        response.success
+        ? '/jobs/onboarding'
+        : '/jobs/signup';
+    }
+  
+    const submitCredentials = (credentials) => {
+      fetch('/auth/google_one_tap/callback', {
+        method: 'POST',
+        mode: 'same-origin',
+        cache: 'no-cache',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken()
+        },
+        redirect: 'manual',
+        referrerPolicy: 'same-origin',
+        body: formatCredentials(credentials)
+      })
+      .then(response => response.json())
+      .then(handleCredentialsSubmission);
+    };
+  
+    const handleCredentialsSubmission = (response) => {
+      switch (response['required_action']) {
+        case 'notify_and_redirect':
+          postNotification({
+            message: response['notification'],
+            redirect_url: response['redirect_url']
+          });
+          break;
+  
+        case 'registration':
+          registerUser(response.registration);
+          break;
+  
+        case 'two_factor_authentication':
+          window.top.location.href = 'https://wellfound.com/users/two_factor/login';
+          break;
+  
+        default:
+          window.top.location.reload();
+      }
+    }
+  
+    const track = (action) => {
+      if (!window.top.analytics) return;
+  
+      window.top.analytics.track(
+        `tfe : authentication : google one tap : ${action}`
+      );
+    };
+  
+    const handlePromptMomentNotification = (notification) => {
+      if (notification.isDisplayed()) {
+        track('view');
+      }
+  
+      if (notification.isSkippedMoment()) {
+        track('skip');
+      }
+    }
+  
+    const bodyObserver = new MutationObserver(mutations => {
+      for (let mutation of mutations) {
+        mutation.addedNodes.forEach(node => {
+          if (isGoogleOneTapNode(node)) {
+            const attributeObserver = new MutationObserver(() => postHeightChanged(node.style.height));
+            attributeObserver.observe(node, { attributeFilter: ['style'] });
+          }
+        });
+  
+        mutation.removedNodes.forEach(node => {
+          if (isGoogleOneTapNode(node)) {
+            postHeightChanged(0);
+          }
+        });
+      }
+    });
+  
+    bodyObserver.observe(window.document.body, { childList: true });
+  
+    google.accounts.id.initialize({
+      client_id: '226439589000-46u1nnlaf8lt4fuku2pc3mfqj59sh0u4.apps.googleusercontent.com',
+      callback: submitCredentials
+    });
+  
+    google.accounts.id.prompt(handlePromptMomentNotification);
+  }
+</script>
+</head>
+<body><script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'947c452bdd85b91a',t:'MTc0ODU4NzU0Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+
+</body></html>
